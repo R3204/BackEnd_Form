@@ -1,20 +1,30 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json");
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
 
 $host = 'localhost';
-$dbname = 'form_builder';
-$username = 'root';
-$password = '';
+$dbname = 'form_builder'; // Replace with your database name
+$username = 'root'; // Replace with your username
+$password = ''; // Replace with your password
 
-try {
-    $conn = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$conn = new mysqli($host, $username, $password, $dbname);
 
-    $stmt = $conn->query('SELECT * FROM forms');
-    $forms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    echo json_encode($forms);
-} catch (PDOException $e) {
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+if ($conn->connect_error) {
+    die(json_encode(['success' => false, 'message' => 'Database connection failed: ' . $conn->connect_error]));
 }
+
+$result = $conn->query("SELECT id, form_name, form_data FROM forms");
+
+if ($result->num_rows > 0) {
+    $forms = [];
+    while ($row = $result->fetch_assoc()) {
+        $forms[] = $row;
+    }
+    echo json_encode($forms);
+} else {
+    echo json_encode([]);
+}
+
+$conn->close();
+?>

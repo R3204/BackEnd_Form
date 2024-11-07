@@ -1,30 +1,68 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Content-Type: application/json");
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *'); // Allows requests from any origin
+header('Access-Control-Allow-Methods: POST, GET, OPTIONS'); // Specifies allowed HTTP methods
+header('Access-Control-Allow-Headers: Content-Type'); // Specifies allowed headers
 
-$host = 'localhost';
-$dbname = 'form_builder';
-$username = 'root';
-$password = '';
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200); // Handles preflight requests
+    exit;
+}
 
-try {
-    $conn = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-    $data = json_decode(file_get_contents('php://input'), true);
+// Database configuration
+$host = 'localhost'; // Hostname
+$dbname = 'form_builder'; // Replace with your database name
+$username = 'root'; // Replace with your MySQL username
+$password = ''; // Replace with your MySQL password
 
-    if (!$data || !isset($data['basicInfo']['firstName'])) {
-        echo json_encode(['success' => false, 'message' => 'Invalid input']);
-        exit;
+// Establish database connection
+$conn = new mysqli($host, $username, $password, $dbname);
+
+if ($conn->connect_error) {
+    die(json_encode(['success' => false, 'message' => 'Database connection failed' . $conn->connect_error]));
+}
+
+// Get the POSTed JSON data
+$data = json_decode(file_get_contents('php://input'), true);
+
+if ($data) {
+    $basicInfo = $data['basicInfo'];
+    $essentialDates = $data['essentialDates'];
+    $contactInfo = $data['contactInfo'];
+    $addressInfo = $data['addressInfo'];
+
+    // Insert data into the database
+    $stmt = $conn->prepare("INSERT INTO forms (first_name, last_name, lead_type, lead_source, dob, anniversary_date, office_phone, primary_email, home_phone, address_line1, city, zip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param(
+        "ssssssssssss",
+        $basicInfo['firstName'],
+        $basicInfo['lastName'],
+        $basicInfo['leadType'],
+        $basicInfo['leadSource'],
+        $essentialDates['dob'],
+        $essentialDates['anniversaryDate'],
+        $contactInfo['officePhone'],
+        $contactInfo['primaryEmail'],
+        $contactInfo['homePhone'],
+        $addressInfo['addressLine1'],
+        $addressInfo['city'],
+        $addressInfo['zip']
+    );
+
+    if ($stmt->execute()) {
+        echo json_encode(['success' => true, 'message' => 'Form submitted successfully']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Failed to submit form'  . $stmt->error]);
     }
 
-    $stmt = $conn->prepare('INSERT INTO forms (form_name, form_data) VALUES (:form_name, :form_data)');
-    $stmt->bindParam(':form_name', $data['basicInfo']['firstName']);
-    $stmt->bindParam(':form_data', json_encode($data));
-    $stmt->execute();
-
-    echo json_encode(['success' => true, 'message' => 'Form submitted successfully', 'id' => $conn->lastInsertId()]);
-} catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
+    $stmt->close();
+} else {
+    echo json_encode(['success' => false, 'message' => 'Invalid input']);
 }
+
+$conn->close();
+?>
